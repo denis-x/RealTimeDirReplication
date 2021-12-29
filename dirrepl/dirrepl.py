@@ -5,9 +5,21 @@ import os
 import stat
 import shutil
 import logging
+
 from watchdog.observers import Observer
 from watchdog.events import RegexMatchingEventHandler
 from dirsync.syncer import Syncer
+
+# Define standard logger with desired formatting
+logger = logging.getLogger(__name__)
+_log_formatter = logging.Formatter(
+    fmt='[%(levelname)s] %(asctime)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S')
+_log_handler = logging.StreamHandler()
+_log_handler.setFormatter(_log_formatter)
+_log_handler.setLevel(logging.INFO)
+logger.addHandler(_log_handler)
+logger.setLevel(logging.DEBUG)
 
 
 class FileSystemEventHandler(RegexMatchingEventHandler):
@@ -19,14 +31,14 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         self._last_deleted_dir = None
         super().__init__(**kwargs)
         if not os.path.isdir(self._origin_path):
-            logging.critical('Origin directory %s does not exist!' % self._origin_path)
+            logger.critical('Origin directory %s does not exist!' % self._origin_path)
         if not os.path.isdir(self._replica_path):
-            logging.warning('Replica directory %s does not exist' % self._replica_path)
-            logging.info('Create directory %s' % self._replica_path)
+            logger.warning('Replica directory %s does not exist' % self._replica_path)
+            logger.info('Create directory %s' % self._replica_path)
             try:
                 os.makedirs(self._replica_path)
             except Exception as e:
-                logging.critical(str(e))
+                logger.critical(str(e))
 
     def on_moved(self, event):
         """File/directory movement event.
@@ -36,7 +48,7 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         self._last_deleted_dir = None
         # Ignore file/dir, which has been already moved together with upper level directory
         if self._last_moved_dir is not None and event.src_path.find(self._last_moved_dir) == 0:
-            logging.debug('%s has been already moved' % event.src_path)
+            logger.debug('%s has been already moved' % event.src_path)
             return
         # Memorize last moved directory, it will be reset by any other operation then file/dir movement
         if event.is_directory:
@@ -46,27 +58,27 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         path_moved_from = os.path.join(self._replica_path, os.path.relpath(event.src_path, self._origin_path))
         # Construct path to destination file/directory being moved in replica folder
         path_moved_to = os.path.join(self._replica_path, os.path.relpath(event.dest_path, self._origin_path))
-        logging.info('Move %s->%s' % (path_moved_from, path_moved_to))
+        logger.info('Move %s->%s' % (path_moved_from, path_moved_to))
         try:
             if os.path.exists(path_moved_from):
                 try:
                     shutil.move(path_moved_from, path_moved_to)
                 except shutil.Error as e:
-                    logging.error(str(e))
+                    logger.error(str(e))
             elif os.path.exists(path_moved_to):
                 if event.is_directory:
-                    logging.warning('Directory does not exist in replica by source location, '
-                                    'but in destination location')
+                    logger.warning('Directory does not exist in replica by source location, '
+                                   'but in destination location')
                 else:
-                    logging.warning('File does not exist in replica by source location, '
-                                    'but in destination location')
+                    logger.warning('File does not exist in replica by source location, '
+                                   'but in destination location')
             else:
                 if event.is_directory:
-                    logging.error('Directory does not exist in replica either by source or destination locations')
+                    logger.error('Directory does not exist in replica either by source or destination locations')
                 else:
-                    logging.error('File does not exist in replica either by source or destination locations')
+                    logger.error('File does not exist in replica either by source or destination locations')
         except Exception as e:
-            logging.error(str(e))
+            logger.error(str(e))
 
     def on_created(self, event):
         """Directory creation event (ignoring for files, as file creation is always followed by modification event).
@@ -76,18 +88,18 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         if event.is_directory:
             # Construct path to directory being created in replica folder
             path_to_created = os.path.join(self._replica_path, os.path.relpath(event.src_path, self._origin_path))
-            logging.info('Create %s' % path_to_created)
+            logger.info('Create %s' % path_to_created)
             if os.path.exists(event.src_path):
                 try:
                     if not os.path.isdir(path_to_created):
                         try:
                             os.makedirs(path_to_created)
                         except OSError as e:
-                            logging.error(str(e))
+                            logger.error(str(e))
                 except Exception as e:
-                    logging.error(str(e))
+                    logger.error(str(e))
             else:
-                logging.warning('Directory does not exist at origin')
+                logger.warning('Directory does not exist at origin')
 
     def on_deleted(self, event):
         """File/directory deleting event.
@@ -96,7 +108,7 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         deleting events for them are to be ignored."""
         # Ignore file/dir, which has been already deleted together with upper level directory
         if self._last_deleted_dir is not None and event.src_path.find(self._last_deleted_dir) == 0:
-            logging.debug('%s has been already deleted' % event.src_path)
+            logger.debug('%s has been already deleted' % event.src_path)
             return
         # Memorize last deleted directory, it will be reset by any other operation then file/dir deleting
         if event.is_directory:
@@ -105,7 +117,7 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         self._last_moved_dir = None
         # Construct path to file/directory being deleted in replica folder
         path_to_deleted = os.path.join(self._replica_path, os.path.relpath(event.src_path, self._origin_path))
-        logging.info('Delete %s' % path_to_deleted)
+        logger.info('Delete %s' % path_to_deleted)
         try:
             if not event.is_directory:
                 if os.path.isfile(path_to_deleted):
@@ -116,19 +128,19 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
                             os.chmod(path_to_deleted, stat.S_IWRITE)
                             os.remove(path_to_deleted)
                     except OSError as e:
-                        logging.error(str(e))
+                        logger.error(str(e))
                 else:
-                    logging.warning('File does not already exist at replica')
+                    logger.warning('File does not already exist at replica')
             else:
                 if os.path.isdir(path_to_deleted):
                     try:
                         shutil.rmtree(path_to_deleted, True)
                     except shutil.Error as e:
-                        logging.error(str(e))
+                        logger.error(str(e))
                 else:
-                    logging.warning('Directory does not already exist at replica')
+                    logger.warning('Directory does not already exist at replica')
         except Exception as e:  # of any use ?
-            logging.error(str(e))
+            logger.error(str(e))
 
     def on_modified(self, event):
         """File modification event (ignoring for directories).
@@ -138,14 +150,14 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
             self._last_deleted_dir = None
             # Construct path to file/directory being modified in replica folder
             path_to_modified = os.path.join(self._replica_path, os.path.relpath(event.src_path, self._origin_path))
-            logging.info('Update %s' % path_to_modified)
+            logger.info('Update %s' % path_to_modified)
             if os.path.exists(event.src_path):
                 try:
                     shutil.copy2(event.src_path, path_to_modified)
                 except (IOError, OSError) as e:
-                    logging.error(str(e))
+                    logger.error(str(e))
             else:
-                logging.warning('File does not exist at origin')
+                logger.warning('File does not exist at origin')
 
 
 default_ignore_regex = r'.*\.git\b|.*\.idea\b|.*\.gitignore\b'
@@ -162,10 +174,12 @@ def cmd_args_parser():
     # Export options
     parser.add_argument('-o', '--origin',
                         dest='path_to_origin',
+                        default='',
                         metavar='PATH',
                         help='Path to origin directory, content of which is to be replicated in replica directory.')
     parser.add_argument('-r', '--replica',
                         dest='path_to_replica',
+                        default='',
                         metavar='PATH',
                         help='Path to replica directory, content of which is to be replicated from origin directory.')
     parser.add_argument('-i', '--ignore',
@@ -178,8 +192,9 @@ def cmd_args_parser():
                         default=False,
                         help='Enable DEBUG messages in log.')
     parser.add_argument('-l', '--log',
-                        metavar='PATH',
+                        default='',
                         dest='log_path',
+                        metavar='PATH',
                         help='Path to log file.')
 
     # --------------------------------------
@@ -193,25 +208,20 @@ def main():
     cmd_args = cmd_args_parser()
     # Configure logger
     if cmd_args['log_path']:
+        # When log to log file, configure console logger to report only errors
+        _log_handler.setLevel(logging.ERROR)
         from logging.handlers import RotatingFileHandler
-        log_formatter = logging.Formatter('[%(levelname)s] %(asctime)s - %(message)s')
-        my_handler = RotatingFileHandler(
-            cmd_args['log_path'],
-            mode='a',
+        file_logger = RotatingFileHandler(
+            filename=cmd_args['log_path'],
+            mode='w',
             maxBytes=5 * 1024 * 1024,
-            backupCount=0,
-            encoding=None,
+            backupCount=2,
             delay=0)
-        my_handler.setFormatter(log_formatter)
-        my_handler.setLevel(logging.DEBUG if cmd_args['debug'] else logging.INFO)
-        # app_log = logging.getLogger('root')
-        # app_log.setLevel(logging.INFO)
-        # app_log.addHandler(my_handler)
-        logging.getLogger(__name__).addHandler(my_handler)
-    else:
-        logging.basicConfig(level=logging.DEBUG if cmd_args['debug'] else logging.INFO,
-                            format='[%(levelname)s] %(asctime)s - %(message)s',
-                            datefmt='%Y-%m-%d %H:%M:%S')
+        file_logger.setFormatter(_log_formatter)
+        file_logger.setLevel(logging.DEBUG if cmd_args['debug'] else logging.INFO)
+        logger.addHandler(file_logger)
+    elif cmd_args['debug']:
+        _log_handler.setLevel(logging.DEBUG)
     # Configure event handler
     event_handler = FileSystemEventHandler(
         origin_path=cmd_args['path_to_origin'],
@@ -229,7 +239,7 @@ def main():
             cmd_args['path_to_origin'],
             cmd_args['path_to_replica'],
             'sync',
-            logger=logging,
+            logger=logger,
             exclude=[re.compile(cmd_args['ignore_pattern'])],
             purge=True,
             ctime=True,
