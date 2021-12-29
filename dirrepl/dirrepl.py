@@ -1,6 +1,5 @@
 import argparse
 import re
-import sys
 import time
 import os
 import stat
@@ -189,32 +188,49 @@ def cmd_args_parser():
     return vars(parser.parse_args())
 
 
-def main(path_to_origin, path_to_replica, ignore_pattern=default_ignore_regex):
+def main():
     # Parse command line arguments
     cmd_args = cmd_args_parser()
     # Configure logger
-    logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s - %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+    if cmd_args['log_path']:
+        from logging.handlers import RotatingFileHandler
+        log_formatter = logging.Formatter('[%(levelname)s] %(asctime)s - %(message)s')
+        my_handler = RotatingFileHandler(
+            cmd_args['log_path'],
+            mode='a',
+            maxBytes=5 * 1024 * 1024,
+            backupCount=0,
+            encoding=None,
+            delay=0)
+        my_handler.setFormatter(log_formatter)
+        my_handler.setLevel(logging.DEBUG if cmd_args['debug'] else logging.INFO)
+        # app_log = logging.getLogger('root')
+        # app_log.setLevel(logging.INFO)
+        # app_log.addHandler(my_handler)
+        logging.getLogger(__name__).addHandler(my_handler)
+    else:
+        logging.basicConfig(level=logging.DEBUG if cmd_args['debug'] else logging.INFO,
+                            format='[%(levelname)s] %(asctime)s - %(message)s',
+                            datefmt='%Y-%m-%d %H:%M:%S')
     # Configure event handler
     event_handler = FileSystemEventHandler(
-        origin_path=path_to_origin,
-        replica_path=path_to_replica,
-        ignore_regexes=[ignore_pattern],
+        origin_path=cmd_args['path_to_origin'],
+        replica_path=cmd_args['path_to_replica'],
+        ignore_regexes=[cmd_args['ignore_pattern']],
         case_sensitive=True
     )
     # Configure and run file system events observer
     observer = Observer()
-    observer.schedule(event_handler, path_to_origin, recursive=True)
+    observer.schedule(event_handler, cmd_args['path_to_origin'], recursive=True)
     observer.start()
     try:
         # Configure and run syncer
         syncer = Syncer(
-            path_to_origin,
-            path_to_replica,
+            cmd_args['path_to_origin'],
+            cmd_args['path_to_replica'],
             'sync',
             logger=logging,
-            exclude=[re.compile(ignore_pattern)],
+            exclude=[re.compile(cmd_args['ignore_pattern'])],
             purge=True,
             ctime=True,
             create=True,
@@ -224,11 +240,15 @@ def main(path_to_origin, path_to_replica, ignore_pattern=default_ignore_regex):
         # Indefinite loop for observer operation
         while True:
             time.sleep(1)
+    except KeyboardInterrupt:
+        # pass to mitigate error message
+        pass
     finally:
         observer.stop()
         observer.join()
 
 
 if __name__ == "__main__":
-    print(cmd_args_parser())
+    main()
+    # print(cmd_args_parser())
     # main('/home/denis/dirsync_test/B', '/home/denis/dirsync_test/C')
