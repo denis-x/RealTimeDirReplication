@@ -1,12 +1,3 @@
-from importlib.util import spec_from_loader, module_from_spec
-from importlib.machinery import SourceFileLoader
-
-spec = spec_from_loader("dirsync",
-                        SourceFileLoader("dirsync", r"C:\Users\nxa14730\PycharmProjects\dirsync\dirsync\__init__.py"))
-mod = module_from_spec(spec)
-spec.loader.exec_module(mod)
-print(mod.__file__)
-
 import argparse
 import re
 import time
@@ -17,8 +8,7 @@ import logging
 
 from watchdog.observers import Observer
 from watchdog.events import RegexMatchingEventHandler
-from dirsync.syncer import Syncer as DirSyncSyncer
-from dirsync.syncer import DCMP
+from dirsync.syncer import Syncer
 
 # Define standard logger with desired formatting
 logger = logging.getLogger(__name__)
@@ -30,83 +20,6 @@ _log_handler.setFormatter(_log_formatter)
 _log_handler.setLevel(logging.INFO)
 logger.addHandler(_log_handler)
 logger.setLevel(logging.DEBUG)
-
-
-class Syncer(DirSyncSyncer):
-
-    def _compare(self, dir1, dir2):
-        """FIX: Compare contents of two directories """
-
-        left = set()
-        right = set()
-
-        self._numdirs += 1
-
-        excl_patterns = set(self._exclude).union(self._ignore)
-
-        for cwd, dirs, files in os.walk(dir1):
-            self._numdirs += len(dirs)
-            for f in dirs + files:
-                path = os.path.relpath(os.path.join(cwd, f), dir1)
-                re_path = path.replace('\\', '/')
-                if self._only:
-                    for pattern in self._only:
-                        if re.match(pattern, re_path):
-                            # go to exclude and ignore filtering
-                            break
-                    else:
-                        # next item, this one does not match any pattern
-                        # in the _only list
-                        continue
-
-                add_path = False
-                for pattern in self._include:
-                    if re.match(pattern, re_path):
-                        add_path = True
-                        break
-                else:
-                    # path was not in includes
-                    # test if it is in excludes
-                    for pattern in excl_patterns:
-                        if re.match(pattern, re_path):
-                            # path is in excludes, do not add it
-                            break
-                    else:
-                        # path was not in excludes
-                        # it should be added
-                        add_path = True
-
-                if add_path:
-                    left.add(path)
-                    # Code retired below, because it adds all sub-directories to the left,
-                    # which creates difference between identical dir1 and dir2
-                    # anc_dirs = re_path[:-1].split('/')
-                    # anc_dirs_path = ''
-                    # for ad in anc_dirs[1:]:
-                    #     anc_dirs_path = os.path.join(anc_dirs_path, ad)
-                    #     left.add(anc_dirs_path)
-
-        for cwd, dirs, files in os.walk(dir2):
-            for f in dirs + files:
-                path = os.path.relpath(os.path.join(cwd, f), dir2)
-                re_path = path.replace('\\', '/')
-                for pattern in self._ignore:
-                    if re.match(pattern, re_path):
-                        if f in dirs:
-                            dirs.remove(f)
-                        break
-                else:
-                    right.add(path)
-                    # no need to add the parent dirs here,
-                    # as there is no _only pattern detection
-                    if f in dirs and path not in left:
-                        self._numdirs += 1
-
-        common = left.intersection(right)
-        left.difference_update(common)
-        right.difference_update(common)
-
-        return DCMP(left, right, common)
 
 
 class FileSystemEventHandler(RegexMatchingEventHandler):
@@ -320,17 +233,6 @@ def main():
     observer.schedule(event_handler, cmd_args['path_to_origin'], recursive=True)
     observer.start()
     try:
-        # # Configure and run syncer
-        # syncer = Syncer(
-        #     cmd_args['path_to_origin'],
-        #     cmd_args['path_to_replica'],
-        #     'diff',
-        #     logger=logger,
-        #     exclude=[re.compile(cmd_args['ignore_pattern'])],
-        #     verbose=True,
-        # )
-        # syncer.do_work()
-        # logger.info('Directory comparision has been completed')
         # Configure and run syncer
         syncer = Syncer(
             cmd_args['path_to_origin'],
@@ -357,5 +259,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # print(cmd_args_parser())
-    # main('/home/denis/dirsync_test/B', '/home/denis/dirsync_test/C')
