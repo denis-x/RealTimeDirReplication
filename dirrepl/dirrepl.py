@@ -115,7 +115,6 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         self._origin_path = kwargs.pop('origin_path', None)
         self._replica_path = kwargs.pop('replica_path', None)
         self._last_moved_dir = None
-        self._last_deleted_dir = None
         super().__init__(**kwargs)
         try:
             if not os.path.isdir(self._origin_path):
@@ -135,7 +134,6 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         File/directory is to be moved from source to destination location at replica.
         When upper level directory has been already moved within underlying files/directories,
         movement events for them are to be ignored."""
-        self._last_deleted_dir = None
         # Ignore file/dir, which has been already moved together with upper level directory
         if self._last_moved_dir is not None and event.src_path.find(self._last_moved_dir) == 0:
             logger.debug('%s has been already moved' % event.src_path)
@@ -144,9 +142,9 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         if event.is_directory:
             # Append '/', because can exist directory having the same combination of chars in the beginning of its name
             self._last_moved_dir = event.src_path + r'/'
-        # Construct path to source file/directory being moved in replica folder
+        # Construct path to source location of file/directory being moved in replica folder
         path_moved_from = os.path.join(self._replica_path, os.path.relpath(event.src_path, self._origin_path))
-        # Construct path to destination file/directory being moved in replica folder
+        # Construct path to destination location of file/directory being moved in replica folder
         path_moved_to = os.path.join(self._replica_path, os.path.relpath(event.dest_path, self._origin_path))
         logger.info('Move %s->%s' % (path_moved_from, path_moved_to))
         try:
@@ -175,7 +173,6 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         Directory is to be created at replica.
         File is to be copied from source locatin at origin to destination location at replica"""
         self._last_moved_dir = None
-        self._last_deleted_dir = None
         # Construct path to file/directory being created in replica folder
         path_to_created = os.path.join(self._replica_path, os.path.relpath(event.src_path, self._origin_path))
         logger.info('Create %s' % path_to_created)
@@ -205,24 +202,20 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
 
     def on_deleted(self, event):
         """File/directory deleting event.
-        File/directory is to be deleted at replica.
-        When upper level directory has been already deleted within underlying files/directories,
-        deleting events for them are to be ignored."""
-        # Ignore file/dir, which has been already deleted together with upper level directory
-        if self._last_deleted_dir is not None and event.src_path.find(self._last_deleted_dir) == 0:
-            logger.debug('%s has been already deleted' % event.src_path)
-            return
-        # Memorize last deleted directory, it will be reset by any other operation then file/dir deleting
-        if event.is_directory:
-            # Append '/', because can exist directory having the same combination of chars in the beginning of its name
-            self._last_deleted_dir = event.src_path + r'/'
+        File/directory is to be deleted at replica."""
         self._last_moved_dir = None
         # Construct path to file/directory being deleted in replica folder
         path_to_deleted = os.path.join(self._replica_path, os.path.relpath(event.src_path, self._origin_path))
         logger.info('Delete %s' % path_to_deleted)
         try:
-            if not event.is_directory:
-                if os.path.isfile(path_to_deleted):
+            if os.path.exists(path_to_deleted):
+                if os.path.isdir(path_to_deleted):
+                    try:
+                        # os.rmdir(path_to_deleted)
+                        shutil.rmtree(path_to_deleted, True)
+                    except Exception as e:
+                        logger.error(str(e))
+                else:
                     try:
                         try:
                             os.remove(path_to_deleted)
@@ -231,17 +224,9 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
                             os.remove(path_to_deleted)
                     except OSError as e:
                         logger.error(str(e))
-                else:
-                    logger.warning('File does not already exist at replica')
             else:
-                if os.path.isdir(path_to_deleted):
-                    try:
-                        shutil.rmtree(path_to_deleted, True)
-                    except shutil.Error as e:
-                        logger.error(str(e))
-                else:
-                    logger.warning('Directory does not already exist at replica')
-        except Exception as e:  # of any use ?
+                logger.warning('File/Directory does not already exist at replica')
+        except Exception as e:
             logger.error(str(e))
 
     def on_modified(self, event):
@@ -249,7 +234,6 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         File is to be copied from origin to replica. Directory path is to be preserved."""
         if not event.is_directory:
             self._last_moved_dir = None
-            self._last_deleted_dir = None
             # Construct path to file/directory being modified in replica folder
             path_to_modified = os.path.join(self._replica_path, os.path.relpath(event.src_path, self._origin_path))
             logger.info('Update %s' % path_to_modified)
