@@ -117,15 +117,18 @@ class FileSystemEventHandler(RegexMatchingEventHandler):
         self._last_moved_dir = None
         self._last_deleted_dir = None
         super().__init__(**kwargs)
-        if not os.path.isdir(self._origin_path):
-            logger.critical('Origin directory %s does not exist!' % self._origin_path)
-        if not os.path.isdir(self._replica_path):
-            logger.warning('Replica directory %s does not exist' % self._replica_path)
-            logger.info('Create directory %s' % self._replica_path)
-            try:
-                os.makedirs(self._replica_path)
-            except Exception as e:
-                logger.critical(str(e))
+        try:
+            if not os.path.isdir(self._origin_path):
+                logger.critical('Origin directory %s does not exist!' % self._origin_path)
+            if not os.path.isdir(self._replica_path):
+                logger.warning('Replica directory %s does not exist' % self._replica_path)
+                logger.info('Create directory %s' % self._replica_path)
+                try:
+                    os.makedirs(self._replica_path)
+                except Exception as e:
+                    logger.critical(str(e))
+        except Exception as e:
+            logger.critical(str(e))
 
     def on_moved(self, event):
         """File/directory movement event.
