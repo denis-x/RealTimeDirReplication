@@ -32,3 +32,5 @@ So the main goal is to maintain always up-to-date source code's mirror on Linux'
 ```
 
 > Functionallity of this program is based on dirsync and watchdog.
+
+> How to install: pip install  git+https://github.com/denis-x/RealTimeDirReplication.git
