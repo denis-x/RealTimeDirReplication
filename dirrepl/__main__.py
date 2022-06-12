@@ -4,7 +4,8 @@ import time
 import os
 import logging
 from watchdog.observers import Observer
-from dirsync.syncer import Syncer
+# from dirsync.syncer import Syncer
+from dirrepl.syncer import Syncer
 from .dirrepl import FileSystemEventHandler
 
 default_ignore_regex = r'.*\.git\b|.*\.idea\b|.*\.gitignore\b'
