@@ -109,7 +109,6 @@ def main():
             logger=logger,
             exclude=[re.compile(cmd_args['ignore_pattern'])],
             purge=True,
-            ctime=True,
             create=True,
             verbose=True,
         )
@@ -124,7 +123,6 @@ def main():
             logger=logger,
             exclude=[re.compile(cmd_args['ignore_pattern'])],
             purge=True,
-            ctime=True,
             create=True,
             verbose=True,
         )
@@ -150,7 +148,6 @@ def main():
                 logger=logger,
                 exclude=[re.compile(cmd_args['ignore_pattern'])],
                 purge=True,
-                ctime=True,
                 create=True,
                 verbose=True,
             )
