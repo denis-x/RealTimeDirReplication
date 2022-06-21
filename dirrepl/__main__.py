@@ -8,7 +8,7 @@ from watchdog.observers import Observer
 from dirrepl.syncer import Syncer
 from .dirrepl import FileSystemEventHandler
 
-default_ignore_regex = r'.*\.git\b|.*\.idea\b|.*\.gitignore\b'
+default_ignore_regex = r'.*\.git\b|.*\.idea\b|.*\.gitignore\b|.*\.vs\b'
 
 # Define standard logger with desired formatting
 logger = logging.getLogger(__name__)
